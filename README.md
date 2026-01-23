@@ -1,0 +1,10 @@
+# Automações_LAI
+Neste repositório estou inserindo todas as ideias que serão utilizadas para automatizar tarefas e procesos relacionados ao Acompanhamento, Controle e Monitoramento dos Pedidos de Acesso à Informação recepicionados via SIC (Sistema de Informação ao Cidadão), bem como, utilização do Asana para controle em paralelo com aplicação de motodologias ágeis em forma de projeto. Também está sendo utilizado o framework N8N em auto hospedagem em um Respberry Pi 3, que foi o ponta pé inicial para automatização e primeiro item deste repositório.
+
+Abaixo relaciono as ideias e os principais desdobramentos das mesmas:
+
+1. Monitoramento dos Pedidos de Acesso à Informação por meio do ASAANA, com a criação do Projeto "Lei de Acesso à Informação - LAI", onde estão cadastrados os registros em 4 (quatro) categorias, sendo elas, "Até 10 dias", "Mais de 10 dias", "Vencidas" e "Finalizadas". Todas estas categorias estão relacionadas as solicitações recebidas via sistema SIC/LAI.
+
+2. Criação de um [Fluxo no N8N](./Fluxos/Acompanhamentos_LAI.json "Fluxo utilizado no N8N") para movimentação automática das tarefas de cada um dos pedidos de informações recepcionados via SIC, porém, registrados no ASANA, para melhor acompanhar o prazo dos pedidos e os responsáveis por cada um destes.
+
+3. Criação de um [Script](./Scripts/Painel_LAIs_em_Andamento.js "Scritp para utilização no Tampermonkey") com auxílio do Gemini, utilizando a extensão "Tampermonkey", para que seja realizada a contagem de pedidos de informação abertos em cada uma das seções "Até 10 dias" e "Mais de 10 dias" para confrontar com as informações do Asana. Uma das sugestões já realizadas pelo Gemini e solicitadas por mim, foi a possibilidade de itegrar esse mini painel com as informações do Asana, obtendo como resposta que "sim". Onde será trabalhada em um momento futuro.
