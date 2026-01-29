@@ -1,5 +1,4 @@
 {
-  "name": "Acompanhamentos LAI",
   "nodes": [
     {
       "parameters": {
@@ -34,9 +33,7 @@
         "filters": {
           "opt_fields": [
             "gid",
-            "name",
-            "created_at",
-            "due_on"
+            "name"
           ],
           "project": "1206433618122341",
           "completed_since": "={{ $now }}"
@@ -50,7 +47,7 @@
       ],
       "id": "160c881f-e4d4-4b89-8d40-b43bb1ff9dfa",
       "name": "Obter Tarefas",
-      "alwaysOutputData": true,
+      "alwaysOutputData": false,
       "credentials": {
         "asanaApi": {
           "id": "NsSVQ9nD39f9UBet",
@@ -60,32 +57,12 @@
     },
     {
       "parameters": {
-        "resource": "project",
-        "id": "1206433618122341"
-      },
-      "type": "n8n-nodes-base.asana",
-      "typeVersion": 1,
-      "position": [
-        -208,
-        -112
-      ],
-      "id": "9023e15b-ebe0-4203-a231-9bfb101f2357",
-      "name": "Obter Projeto",
-      "credentials": {
-        "asanaApi": {
-          "id": "NsSVQ9nD39f9UBet",
-          "name": "Asana - Vinícios"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "return items.map(item => {\n  const due = item.json.due_on;\n\n  if (!due) {\n    item.json.dias_restantes = null;\n    item.json.classificacao = \"⚠️ Sem data limite\";\n    return item;\n  }\n\n  const hoje = new Date();\n  const dataLimite = new Date(due);\n\n  // Zera horas para evitar erro de fuso/horário\n  hoje.setHours(0, 0, 0, 0);\n  dataLimite.setHours(0, 0, 0, 0);\n\n  const diffMs = dataLimite - hoje;\n  const diasCorridos = Math.floor(diffMs / (1000 * 60 * 60 * 24));\n\n  item.json.dias_restantes = diasCorridos;\n\n  if (diasCorridos < 0) {\n    item.json.classificacao = \"Vencidos\";\n  } else if (diasCorridos <= 10) {\n    item.json.classificacao = \"Até 10 dias\";\n  } else {\n    item.json.classificacao = \"Mais de 10 dias\";\n  }\n\n  return item;\n});\n"
+        "jsCode": "return items.map(item => {\n  const nomeSub = item.json.name.trim();\n  const notas = item.json.notes || \"\";\n  const parentGid = item.json.parent ? item.json.parent.gid : null;\n\n  // 1. Processar Subtarefa de Abertura (Movimentação por \"Idade\")\n  if (nomeSub.includes(\"Abertura\") && parentGid) {\n    // Converte \"21/01/2026 às 21:51\" para \"2026-01-21T21:51:00\"\n    const partes = notas.split(/[\\/\\sàs:]+/);\n    if (partes.length >= 5) {\n      const dataFormatada = `${partes[2]}-${partes[1]}-${partes[0]}T${partes[3]}:${partes[4]}:00`;\n      const dataAbertura = new Date(dataFormatada);\n      const agora = new Date();\n\n      if (!isNaN(dataAbertura.getTime())) {\n        const diffMs = agora - dataAbertura;\n        const diasExatos = diffMs / (1000 * 60 * 60 * 24);\n\n        item.json.gid = parentGid; // ID da tarefa PAI para mover o card\n        item.json.dias_calculados = diasExatos;\n        \n        // Regra: Superou 10 dias, 23h, 59min (ou seja, 11.0 dias)\n        if (diasExatos >= 11) {\n          item.json.classificacao = \"Mais de 10 dias\";\n        } else {\n          item.json.classificacao = \"Até 10 dias\";\n        }\n        return item;\n      }\n    }\n  }\n\n  // 2. Processar Subtarefa de Encerramento (Verificação de Vencimento)\n  // Nota: Como o n8n processa item por item, o Switch vai separar \n  // os resultados. O card pai moverá para \"Vencido\" se este item passar.\n  if (nomeSub.toLowerCase().includes(\"encerr\") && parentGid) {\n    const partesEnc = notas.split(\"/\");\n    if (partesEnc.length === 3) {\n      // Define o vencimento para o final do dia (23:59:59)\n      const dataVencimento = new Date(`${partesEnc[2]}-${partesEnc[1]}-${partesEnc[0]}T23:59:59`);\n      const agora = new Date();\n\n      if (agora > dataVencimento) {\n        item.json.gid = parentGid;\n        item.json.classificacao = \"Vencidos\";\n        return item;\n      }\n    }\n  }\n\n  return null; \n}).filter(item => item !== null);"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        176,
+        384,
         -112
       ],
       "id": "010ee590-04df-462a-ad2f-4eefeb144fc2",
@@ -106,11 +83,11 @@
                 "conditions": [
                   {
                     "id": "393f0df7-5556-41bb-a75b-4ae0a1db8f89",
-                    "leftValue": "={{ $json.dias_restantes }}",
-                    "rightValue": 0,
+                    "leftValue": "={{ $json.classificacao }}",
+                    "rightValue": "Vencidos",
                     "operator": {
-                      "type": "number",
-                      "operation": "lt"
+                      "type": "string",
+                      "operation": "equals"
                     }
                   }
                 ],
@@ -130,11 +107,11 @@
                 "conditions": [
                   {
                     "id": "c5173a81-6597-415e-99eb-c3865a313f08",
-                    "leftValue": "={{ $json.dias_restantes }}",
-                    "rightValue": 10,
+                    "leftValue": "={{ $json.classificacao }}",
+                    "rightValue": "Mais de 10 dias",
                     "operator": {
-                      "type": "number",
-                      "operation": "lte"
+                      "type": "string",
+                      "operation": "equals"
                     }
                   }
                 ],
@@ -153,11 +130,11 @@
                 },
                 "conditions": [
                   {
-                    "leftValue": "={{ $json.dias_restantes }}",
-                    "rightValue": 10,
+                    "leftValue": "={{ $json.classificacao }}",
+                    "rightValue": "Até 10 dias",
                     "operator": {
-                      "type": "number",
-                      "operation": "gte"
+                      "type": "string",
+                      "operation": "equals"
                     },
                     "id": "e73ae7d9-51da-49c0-8160-f15dfe9f113a"
                   }
@@ -174,7 +151,7 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        368,
+        576,
         -128
       ],
       "id": "32f3a05a-5950-4641-94d5-d696f8b2945c",
@@ -190,7 +167,7 @@
       "type": "n8n-nodes-base.asana",
       "typeVersion": 1,
       "position": [
-        816,
+        1024,
         -288
       ],
       "id": "d50d786b-3b16-4d2a-a45c-e14de012ea7e",
@@ -212,7 +189,7 @@
       "type": "n8n-nodes-base.asana",
       "typeVersion": 1,
       "position": [
-        816,
+        1024,
         -112
       ],
       "id": "cbdb3469-24b5-44a3-a40a-707dbe96b042",
@@ -234,7 +211,7 @@
       "type": "n8n-nodes-base.asana",
       "typeVersion": 1,
       "position": [
-        816,
+        1024,
         80
       ],
       "id": "c111bd63-4225-471e-ac04-b50ff081290e",
@@ -245,15 +222,64 @@
           "name": "Asana - Vinícios"
         }
       }
+    },
+    {
+      "parameters": {
+        "resource": "subtask",
+        "operation": "getAll",
+        "taskId": "={{ $json.gid }}",
+        "returnAll": true,
+        "options": {
+          "opt_fields": [
+            "gid",
+            "name",
+            "parent",
+            "notes"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.asana",
+      "typeVersion": 1,
+      "position": [
+        192,
+        -112
+      ],
+      "id": "af09c2bc-b1f6-4c83-a311-c9d862b34527",
+      "name": "Obter Subtarefas",
+      "credentials": {
+        "asanaApi": {
+          "id": "NsSVQ9nD39f9UBet",
+          "name": "Asana - Vinícios"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "project",
+        "id": "1206433618122341"
+      },
+      "type": "n8n-nodes-base.asana",
+      "typeVersion": 1,
+      "position": [
+        -208,
+        -112
+      ],
+      "id": "9023e15b-ebe0-4203-a231-9bfb101f2357",
+      "name": "Selecionar Projeto",
+      "credentials": {
+        "asanaApi": {
+          "id": "NsSVQ9nD39f9UBet",
+          "name": "Asana - Vinícios"
+        }
+      }
     }
   ],
-  "pinData": {},
   "connections": {
     "Agendamento": {
       "main": [
         [
           {
-            "node": "Obter Projeto",
+            "node": "Selecionar Projeto",
             "type": "main",
             "index": 0
           }
@@ -264,18 +290,7 @@
       "main": [
         [
           {
-            "node": "Cálculo de Dias",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Obter Projeto": {
-      "main": [
-        [
-          {
-            "node": "Obter Tarefas",
+            "node": "Obter Subtarefas",
             "type": "main",
             "index": 0
           }
@@ -317,27 +332,33 @@
           }
         ]
       ]
+    },
+    "Obter Subtarefas": {
+      "main": [
+        [
+          {
+            "node": "Cálculo de Dias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Selecionar Projeto": {
+      "main": [
+        [
+          {
+            "node": "Obter Tarefas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": true,
-  "settings": {
-    "executionOrder": "v1",
-    "timeSavedMode": "fixed",
-    "callerPolicy": "workflowsFromSameOwner",
-    "availableInMCP": false
-  },
-  "versionId": "e372ee8b-f5f0-4d8b-9580-1d4adcf634a4",
+  "pinData": {},
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "ef353e2fae1e3a74e3fb0c0a278961d7aebebe6d7254d908bf028daef28df764"
-  },
-  "id": "wQ75dy8ngpxEXSqA",
-  "tags": [
-    {
-      "updatedAt": "2025-12-24T19:32:55.500Z",
-      "createdAt": "2025-12-24T19:32:55.500Z",
-      "id": "ak0PBJZ7sHx9o2Ry",
-      "name": "Asana"
-    }
-  ]
+  }
 }
